@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Catálogo | Tu tienda</title>
+  <meta name="description" content="Catálogo simple para vender ropa con vista de administrador y usuario" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial; }
+    .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <div class="max-w-6xl mx-auto p-4 sm:p-6">
+    <!-- Encabezado -->
+    <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
+      <div>
+        <h1 id="storeName" class="text-2xl sm:text-3xl font-bold">Tu tienda</h1>
+        <p class="text-sm text-gray-600">Catálogo online • Compartí el link</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="toggleMode" class="px-3 py-2 rounded-2xl bg-indigo-600 text-white shadow hover:bg-indigo-700 active:scale-95 transition">Modo Admin</button>
+        <a id="waStoreBtn" href="#" target="_blank" class="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-green-600 text-white shadow hover:bg-green-700 active:scale-95 transition">
+          WhatsApp
+        </a>
+        <button id="shareBtn" class="px-3 py-2 rounded-2xl bg-white border shadow-sm hover:bg-gray-100 active:scale-95 transition">Compartir</button>
+      </div>
+    </header>
+
+    <!-- Controles -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 admin-controls hidden">
+      <div class="sm:col-span-2">
+        <input id="searchInput" type="search" placeholder="Buscar: remera, jean, talle, color…" class="w-full px-4 py-3 rounded-2xl border shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white" />
+      </div>
+      <div>
+        <select id="categorySelect" class="w-full px-4 py-3 rounded-2xl border shadow-sm bg-white">
+          <option value="">Todas las categorías</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Grilla de productos -->
+    <section id="grid" class="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"></section>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 hidden items-center justify-center bg-black/70 p-4 z-50">
+      <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden">
+        <img id="mImg" src="" alt="" class="w-full h-64 object-cover"/>
+        <div class="p-4 space-y-2">
+          <h3 id="mTitle" class="text-xl font-semibold"></h3>
+          <p id="mPrice" class="text-lg font-bold"></p>
+          <p id="mDesc" class="text-sm text-gray-700"></p>
+          <div id="mBadges" class="flex flex-wrap gap-2 pt-1"></div>
+          <div class="flex gap-2 pt-3">
+            <a id="mBuy" href="#" target="_blank" class="flex-1 text-center px-4 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700">Pedir por WhatsApp</a>
+            <button id="mClose" class="px-4 py-3 rounded-xl bg-gray-100 border">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="text-center text-xs text-gray-500 mt-10">
+      Hecho con ♥ para vender por WhatsApp
+    </footer>
+  </div>
+
+  <script>
+  // ======= CONFIGURACIÓN RÁPIDA =======
+  const STORE = {
+    name: 'Tu tienda',
+    whatsapp: '5493510000000',
+  };
+
+  const PRODUCTS = [
+    { id: 'P001', title: 'Remera Oversize “Basic”', price: 8999, currency: 'ARS', image: 'https://images.unsplash.com/photo-1520975682031-a8cfd4f9a4be?q=80&w=1200&auto=format&fit=crop', category: 'Remeras', sizes: ['S','M','L','XL'], color: 'Negra', desc: 'Algodón suave. Corte relajado.' },
+    { id: 'P002', title: 'Buzo Unisex “Core”', price: 17999, currency: 'ARS', image: 'https://images.unsplash.com/photo-1520974722053-0f10c88b41ef?q=80&w=1200&auto=format&fit=crop', category: 'Buzos', sizes: ['M','L','XL'], color: 'Gris', desc: 'Abrigo medio, ideal entretiempo.' },
+    { id: 'P003', title: 'Jean Mom Fit', price: 21999, currency: 'ARS', image: 'https://images.unsplash.com/photo-1516826957135-700dedef3b91?q=80&w=1200&auto=format&fit=crop', category: 'Jeans', sizes: ['36','38','40'], color: 'Azul', desc: 'Tiro alto, calce cómodo.' },
+    { id: 'P004', title: 'Campera Liviana', price: 32999, currency: 'ARS', image: 'https://images.unsplash.com/photo-1516826957135-26ef51f0e1ac?q=80&w=1200&auto=format&fit=crop', category: 'Camperas', sizes: ['S','M','L'], color: 'Verde', desc: 'Resistente al viento.' },
+  ];
+  // ===== FIN CONFIG =====
+
+  const $ = (s, el=document) => el.querySelector(s);
+  const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+  const money = (n, c='ARS') => new Intl.NumberFormat('es-AR', { style:'currency', currency:c, maximumFractionDigits:0 }).format(n);
+  const enc = encodeURIComponent;
+
+  let isAdmin = false;
+
+  function init() {
+    $('#storeName').textContent = STORE.name;
+    $('#waStoreBtn').href = `https://wa.me/${STORE.whatsapp}`;
+
+    const cats = [...new Set(PRODUCTS.map(p => p.category).filter(Boolean))];
+    const sel = $('#categorySelect');
+    cats.forEach(c => sel.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+
+    render(PRODUCTS);
+
+    $('#searchInput').addEventListener('input', applyFilters);
+    $('#categorySelect').addEventListener('change', applyFilters);
+    $('#shareBtn').addEventListener('click', sharePage);
+
+    $('#mClose').addEventListener('click', closeModal);
+    $('#modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') closeModal(); });
+
+    $('#toggleMode').addEventListener('click', toggleMode);
+  }
+
+  function toggleMode() {
+    isAdmin = !isAdmin;
+    $('.admin-controls').classList.toggle('hidden', !isAdmin);
+    $('#toggleMode').textContent = isAdmin ? 'Modo Usuario' : 'Modo Admin';
+    render(PRODUCTS);
+  }
+
+  function applyFilters() {
+    const q = $('#searchInput').value.toLowerCase().trim();
+    const cat = $('#categorySelect').value;
+    const filtered = PRODUCTS.filter(p => {
+      const text = `${p.title} ${p.desc||''} ${p.color||''} ${p.sizes?.join(' ')||''} ${p.category||''}`.toLowerCase();
+      const okQ = !q || text.includes(q);
+      const okC = !cat || p.category === cat;
+      return okQ && okC;
+    });
+    render(filtered);
+  }
+
+  function render(list) {
+    const grid = $('#grid');
+    grid.innerHTML = '';
+    if (!list.length) {
+      grid.innerHTML = `<div class='col-span-full text-center text-gray-500'>No hay productos que coincidan.</div>`;
+      return;
+    }
+    list.forEach(p => {
+      const card = document.createElement('article');
+      card.className = 'bg-white rounded-2xl border shadow-sm overflow-hidden hover:shadow-md transition flex flex-col';
+      let innerHTML = `
+        <button class='relative' data-open='${p.id}'>
+          <img src='${p.image}' alt='${p.title}' class='w-full h-44 sm:h-48 object-cover' onerror="this.src='https://via.placeholder.com/600x400?text=Imagen'"/>
+        </button>
+        <div class='p-3 flex-1 flex flex-col'>
+          <h3 class='font-semibold line-clamp-2'>${p.title}</h3>
+          <p class='text-sm text-gray-600 mt-1'>${p.category||''} ${p.color? '• '+p.color: ''}</p>
+          <div class='mt-auto flex items-center justify-between pt-2'>
+            <span class='font-bold'>${money(p.price, p.currency||'ARS')}</span>
+            <a class='text-indigo-600 text-sm font-medium' target='_blank' href='${waLink(p)}'>Comprar</a>
+          </div>
+        </div>`;
+
+      if(isAdmin) {
+        innerHTML += `<div class='p-2 border-t text-center text-xs text-gray-500'>ID: ${p.id}</div>`;
+      }
+
+      card.innerHTML = innerHTML;
+      grid.appendChild(card);
+      card.querySelector('[data-open]')?.addEventListener('click', ()=> openModal(p));
+    });
+  }
+
+  function waLink(p) {
+    const msg = `Hola! Me interesa *${p.title}* (ID: ${p.id}). Precio ${money(p.price, p.currency||'ARS')}. ¿Hay stock en talle ${p.sizes?.join('/')||'-'}?`;
+    return `https://wa.me/${STORE.whatsapp}?text=${enc(msg)}`;
+  }
+
+  function openModal(p) {
+    $('#mImg').src = p.image;
+    $('#mTitle').textContent = p.title;
+    $('#mPrice').textContent = money(p.price, p.currency||'ARS');
+    $('#mDesc').textContent = p.desc||'';
+    const badges = $('#mBadges');
+    badges.innerHTML = '';
+    if (p.sizes?.length) badges.insertAdjacentHTML('beforeend', `<span class='px-2 py-1 text-xs bg-gray-100 rounded-full border'>Talles: ${p.sizes.join(', ')}</span>`);
+    if (p.color) badges.insertAdjacentHTML('beforeend', `<span class='px-2 py-1 text-xs bg-gray-100 rounded-full border'>Color: ${p.color}</span>`);
+    $('#mBuy').href = waLink(p);
+    $('#modal').classList.remove('hidden');
+    $('#modal').classList.add('flex');
+  }
+
+  function closeModal(){
+    $('#modal').classList.add('hidden');
+    $('#modal').classList.remove('flex');
+  }
+
+  async function sharePage(){
+    const url = window.location.href;
+    const title = document.title;
+    const text = `${STORE.name} — mirá el catálogo`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        alert('Link copiado. Pegalo en WhatsApp/Instagram.');
+      }
+    } catch(e) {
+      await navigator.clipboard.writeText(url);
+      alert('Link copiado. Pegalo en WhatsApp/Instagram.');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
